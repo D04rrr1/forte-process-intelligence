@@ -1,189 +1,141 @@
-# Factory Digital Twin
+# Forte Process Intelligence
 
-Прототип цифрового двойника автомобильного завода для QOSTANAI AI INDUSTRY HACKATHON 2026.
+**ForteBank Datathon 2026 — Local, explainable video review for cash-desk operations**
 
-## Что делает проект
+Forte Process Intelligence is a working prototype that accepts CCTV-style `.mov` video, analyzes activity around a cashier's workstation, and returns a machine-readable screening verdict with timestamps and evidence frames. The goal is to help a human reviewer find relevant moments faster — **not** to replace a compliance officer or make legally binding decisions.
 
-Система объединяет производственный мониторинг и AI-анализ оборудования:
+## What it does
 
-- мониторинг plan / fact;
-- загрузка производственных линий;
-- контроль качества;
-- учет простоев;
-- Digital Twin производственного потока;
-- AI #1 — прогноз вероятности отказа;
-- AI #2 — диагностика вероятной причины;
-- AI #3 — подбор более безопасных параметров работы;
-- рекомендации инженеру с ручным подтверждением.
+- **Video analysis:** a local computer-vision pipeline processes video frames without calling external vision models or hosted LLMs.
+- **People and context:** person detection, presence events, basic role inference, and temporal reasoning about the workstation.
+- **Cash-focused screening:** custom cash-object detection and time-based consistency checks generate candidates for unattended-cash incidents.
+- **Explainable output:** event timestamps, textual findings, and up to three JPEG evidence frames encoded as Base64.
+- **Two interfaces:** a FastAPI job API and a Streamlit review interface.
 
-## Архитектура
+The project also contains a **rule catalog** for additional scenarios. A catalog entry is **not** the same as a validated, trained detector. Signals requiring more context remain candidates for human review.
+
+## Architecture
 
 ```text
-Factory data / Machine sensors
-            ↓
-      Digital Twin
-            ↓
-     AI #1 Predict
-            ↓
-    AI #2 Diagnose
-            ↓
-    AI #3 Optimize
-            ↓
-     Engineer / Manager
+MOV video
+   |
+   v
+Frame decoding / visual detection
+   |
+   v
+People, object, and presence signals
+   |
+   v
+Temporal checks + rule-aware triage
+   |
+   +--> Diagnostic signals / review candidates
+   |
+   v
+Binary screening verdict + timecode + evidence
+   |
+   +--> FastAPI JSON / Streamlit interface
 ```
 
-## Структура проекта
+Key files:
 
-```text
-factory-digital-twin/
-├── app.py
-├── factory_data.py
-├── failureai.py
-├── failurecause.py
-├── failurdesicion.py
-├── failure_binary_model.joblib
-├── failure_type_model.joblib
-├── ai4i2020.csv
-├── requirements.txt
-├── .gitignore
-└── README.md
-```
+- `api.py` — authenticated video upload and asynchronous analysis jobs.
+- `app.py` — Streamlit user interface.
+- `src/pipeline.py` — main local analysis pipeline.
+- `src/presence_events.py`, `src/auto_roles.py` — presence and role signals.
+- `src/rule_engine.py` — rule-aware screening logic.
+- `detect_cash_events.py` — cash detection helpers.
+- `rules/` — rule definitions/catalog.
 
-## AI Pipeline
+## Requirements and local setup
 
-### AI #1 — Predict
-Файл: `failureai.py`
-
-Вход:
-- machine type;
-- air temperature;
-- process temperature;
-- RPM;
-- torque;
-- tool wear.
-
-Выход:
-- вероятность отказа оборудования.
-
-### AI #2 — Diagnose
-Файл: `failurecause.py`
-
-Определяет вероятные типы отказа:
-- TWF — Tool Wear Failure;
-- HDF — Heat Dissipation Failure;
-- PWF — Power Failure;
-- OSF — Overstrain Failure.
-
-### AI #3 — Optimize
-Файл: `failurdesicion.py`
-
-Использует результаты AI #1 и AI #2 и подбирает рекомендуемые:
-- RPM;
-- Torque;
-- Process temperature.
-
-AI #3 не управляет оборудованием напрямую. Это decision-support слой: AI рекомендует, инженер подтверждает.
-
-## Dataset
-
-Для обучения predictive maintenance моделей используется AI4I 2020 Predictive Maintenance Dataset.
-
-Файл:
-`ai4i2020.csv`
-
-Примечание: тестовые данные индустриального кейса могут иметь ограничения на публичное распространение. Перед публикацией репозитория убедитесь, что у команды есть право размещать их в открытом доступе.
-
-## Запуск
-
-Установить зависимости:
+Python 3.10+ is recommended. Model inference can run on CPU; processing speed depends on the device and clip length.
 
 ```bash
-python3 -m pip install -r requirements.txt
+python3 -m venv .venv
+source .venv/bin/activate
+python -m pip install -r requirements.txt
 ```
 
-Запустить Streamlit:
+Create a local, **untracked** `.forte_secrets` file:
 
 ```bash
-python3 -m streamlit run app.py
+FORTE_API_KEY=replace-with-your-own-random-key
 ```
 
-После запуска приложение будет доступно по адресу, который покажет Streamlit, обычно:
+Start the API from the repository root:
 
-```text
-http://localhost:8501
+```bash
+set -a
+source .forte_secrets
+set +a
+python -m uvicorn api:app --host 127.0.0.1 --port 8000
 ```
 
-## Основные экраны
+Then visit `http://127.0.0.1:8000/health` or `http://127.0.0.1:8000/docs`.
 
-### Overview
-- производительность;
-- загрузка;
-- defect rate;
-- downtime;
-- alerts;
-- plan vs actual;
-- качество по участкам.
+Start the review UI separately:
 
-### Digital Twin
-Производственный поток:
-
-```text
-Components → Welding → Painting → Assembly → Quality Control → Finished Goods
+```bash
+python -m streamlit run app.py
 ```
 
-### AI Control Center
-Сценарий:
+The project uses locally stored model weights. Private competition videos, uploads, runtime outputs, and API secrets are **not included** in this public repository. Some pretrained weights may need to be cached locally by their supporting libraries for a fresh installation.
 
-```text
-Predict → Diagnose → Optimize
+## API contract
+
+Authentication: `X-API-Key` header. Input: `.mov` file as multipart field `file`.
+
+### 1. Submit a video
+
+```bash
+curl -X POST 'http://127.0.0.1:8000/api/v1/analyze' \
+  -H "X-API-Key: $FORTE_API_KEY" \
+  -F 'file=@sample.mov;type=video/quicktime'
 ```
 
-Показывает:
-- текущий failure risk;
-- risk level;
-- вероятную причину;
-- рекомендуемые параметры;
-- optimized risk;
-- ручное подтверждение рекомендации.
+Example acknowledgement:
 
-## Production integration
-
-Для реального внедрения вместо тестового источника данных можно подключить:
-
-```text
-PLC / Sensors / SCADA / MES
-        ↓
-OPC UA / MQTT / API
-        ↓
-Backend
-        ↓
-Digital Twin + AI
+```json
+{"job_id":"<job_id>","status":"processing"}
 ```
 
-## Технологии
+### 2. Check the job
 
-- Python
-- Streamlit
-- Pandas
-- scikit-learn
-- Random Forest
-- Joblib
-- FastAPI
-- Pydantic
-- Altair
+```bash
+curl 'http://127.0.0.1:8000/api/v1/jobs/<job_id>' \
+  -H "X-API-Key: $FORTE_API_KEY"
+```
 
-## Ограничения MVP
+Job statuses used by this implementation: `processing`, `done`, `failed`. A completed job (`done`) includes top-level `verdict` (`violation` / `no_violation`) and a `violations` list. Each detected violation contains `type`, `timecode_sec`, `description`, and `evidence_frames` with `timestamp_sec` and `image_base64`. A nested `result` is also returned for compatibility with the UI.
 
-- используется тестовый набор данных;
-- нет прямого подключения к PLC;
-- рекомендации AI не отправляются на оборудование автоматически;
-- реальные безопасные operating limits должны быть согласованы с инженерами завода;
-- бизнес-эффект требует проверки на пилоте.
+**Do not share your API key or upload sensitive recordings to unauthorized public services.** For the hackathon demonstration, any temporary public tunnel is a network transport to the locally running API; inference remains on the local machine.
 
-## Hackathon
+## Measured development-set results
 
-Case #2: Digital Twin for automotive production
+A local check on **42 annotated videos** of the stable prototype reported:
 
-QOSTANAI AI INDUSTRY HACKATHON 2026
+| Metric | Value |
+|---|---:|
+| True positives | 1 |
+| False negatives | 21 |
+| True negatives | 20 |
+| False positives | 0 |
+| Recall for violation | 4.55% |
+| Overall accuracy | 50.0% |
 
-Industrial partner: Allur
+These numbers are **development-set observations, not independent test-set performance**. The MVP favors conservative confirmation and therefore misses many violation types. A successful end-to-end API example detected unattended cash in video X-26 at approximately 11.87 s and produced three evidence frames. These observations do not establish general reliability.
+
+## Limitations and next steps
+
+- Only a limited subset of rule scenarios is supported by confirmed positive verdicts; many catalog entries are not implemented as reliable detectors.
+- False negatives are substantial on the annotated development set.
+- Video context, transaction state, and legal applicability cannot be inferred reliably from visual signals alone.
+- Next steps: additional training data, per-rule evaluation, calibrated confidence, independent holdout testing, and human review workflows.
+
+## Privacy and scope
+
+The analysis pipeline runs locally. Raw competition videos and API credentials must remain outside the public repository. Evidence must be used only with permission; the prototype is not intended for production banking surveillance without security, privacy, and compliance review.
+
+---
+
+**Built for ForteBank Datathon 2026.**

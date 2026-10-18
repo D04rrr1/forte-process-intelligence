@@ -224,6 +224,66 @@ async def analyze_endpoint(
     return {"job_id": job_id, "status": "processing"}
 
 
+
+
+# FORTE_JURY_CONTRACT_V1
+def _jury_evidence_path(value):
+    """Map only generated evidence URLs to local files (no arbitrary paths)."""
+    from urllib.parse import unquote
+    if not isinstance(value, str) or not value.startswith('/evidence/'):
+        return None
+    relative = unquote(value[len('/evidence/'):])
+    parts = Path(relative).parts
+    if not parts or '..' in parts or relative.startswith('/'):
+        return None
+    known = {'cash_auto_results', 'handover_auto_results', 'presence_results'}
+    if parts[0] in known:
+        folder = parts[0]
+        remainder = Path(*parts[1:])
+    else:
+        folder = 'handover_auto_results'  # legacy evidence URLs
+        remainder = Path(*parts)
+    base = (DATA_ROOT / folder).resolve()
+    candidate = (base / remainder).resolve()
+    try:
+        candidate.relative_to(base)
+    except ValueError:
+        return None
+    if not candidate.is_file() or candidate.suffix.lower() not in ('.jpg', '.jpeg'):
+        return None
+    return candidate
+
+
+def _jury_violation(item):
+    """Produce schema required by the datathon; no additional AI claims."""
+    import base64
+    import re
+    timestamp = item.get('timestamp_sec')
+    try:
+        timestamp = float(timestamp) if timestamp is not None else 0.0
+    except (ValueError, TypeError):
+        timestamp = 0.0
+    frames = []
+    for url in (item.get('evidence_frames') or [])[:3]:
+        path = _jury_evidence_path(url)
+        if path is None or path.stat().st_size > 8 * 1024 * 1024:
+            continue
+        data = path.read_bytes()
+        if not data.startswith(b'\xff\xd8'):
+            continue
+        matched = re.search(r'(\d+(?:\.\d+)?)s(?=\.[^.]+$)', path.name)
+        frame_timestamp = float(matched.group(1)) if matched else timestamp
+        frames.append({
+            'timestamp_sec': frame_timestamp,
+            'image_base64': base64.b64encode(data).decode('ascii'),
+        })
+    return {
+        'type': item.get('type') or item.get('subtype') or item.get('rule_id') or 'unknown',
+        'timecode_sec': timestamp,
+        'description': item.get('description') or '',
+        'evidence_frames': frames,
+    }
+
 @app.get("/api/v1/jobs/{job_id}")
 def get_job(
     job_id: str,
@@ -237,6 +297,15 @@ def get_job(
         response = {"job_id": job_id, "status": job["status"]}
         if job["status"] == "done":
             response["result"] = job["result"]
+            # Jury contract: binary result and JPEG base64 evidence at top level.
+            # Preserve the existing nested result for backwards compatibility.
+            result = job["result"] or {}
+            response["verdict"] = result.get("verdict", "no_violation")
+            response["violations"] = [
+                _jury_violation(v)
+                for v in result.get("violations", [])
+                if isinstance(v, dict)
+            ]
         elif job["status"] == "failed":
             response["error"] = job["error"]
         return response

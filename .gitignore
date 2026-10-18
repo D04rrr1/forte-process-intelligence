@@ -1,0 +1,33 @@
+
+.forte_secrets
+
+# Secrets
+.forte_secrets
+.env
+.env.*
+.streamlit/secrets.toml
+*secret*
+*token*
+
+# Private datasets and generated evidence
+data/
+backups/
+*.mov
+*.mp4
+*.avi
+*.jpg
+*.jpeg
+*.png
+
+# Python
+.venv/
+__pycache__/
+*.pyc
+.pytest_cache/
+.DS_Store
+
+# Temporary and generated files
+*.zip
+*.log
+runs/
+tools/cloudflared

@@ -1,0 +1,1211 @@
+{
+  "meta": {
+    "version": "0.1",
+    "verified_against": "только предоставленные команде документы (Каталог нарушений, Правила кассовых операций); перед защитой сверить пункты на adilet.zan.kz",
+    "emit_policy_legend": {
+      "violation": "выводить как нарушение",
+      "violation_with_disclaimer": "выводить как нарушение с оговоркой в description (ограниченная нормативная/визуальная уверенность)",
+      "review_only": "в API не повышать до verdict=violation самостоятельно; только вместе с другим событием или по порогу"
+    },
+    "status_legend": {
+      "direct_npa": "прямая норма в публичном НПА",
+      "indirect_npa": "норма опосредованная, needs verification",
+      "internal_risk_rule": "internal/risk rule; not directly supported by public NPA"
+    }
+  },
+  "acts": {
+    "S1": {
+      "title": "Постановление Правления НБ РК от 29.11.2019 № 231 «Правила осуществления кассовых операций и операций по инкассации банкнот, монет и ценностей»",
+      "short": "НБ РК № 231",
+      "url": "https://adilet.zan.kz/rus/docs/V1900019680"
+    },
+    "S2": {
+      "title": "Постановление Правления НБ РК от 24.02.2020 № 14 «Правила организации охраны и устройства помещений банков, инкассаторских организаций и др.»",
+      "short": "НБ РК № 14",
+      "url": "https://adilet.zan.kz/rus/docs/V2000020075"
+    },
+    "S3": {
+      "title": "Постановление Правления АРРФР РК от 03.04.2026 № 53 «Требования к обеспечению информационной безопасности банков…»",
+      "short": "АРРФР № 53",
+      "url": "https://adilet.zan.kz/rus/docs/V2600038336"
+    },
+    "S4": {
+      "title": "Постановление Правления НБ РК от 29.11.2017 № 230 «Правила определения платежности банкнот и монет национальной валюты РК»",
+      "short": "НБ РК № 230",
+      "url": "https://adilet.zan.kz/rus/docs/V1700016120"
+    }
+  },
+  "rules": [
+    {
+      "rule_id": "ID-01",
+      "parent_class": "IDENTITY",
+      "subtype": "missing_identity_check",
+      "violation_type": "Не выполнена идентификация клиента перед операцией",
+      "visible_evidence": "Клиент у окна; начало передачи/приёма наличных; в промежутке нет предъявления удостоверения/цифрового документа и взгляда кассира на него",
+      "norms": [
+        {
+          "act": "S1",
+          "clause": "п. 19(1)",
+          "role": "primary"
+        },
+        {
+          "act": "S1",
+          "clause": "п. 31(1)",
+          "role": "primary"
+        }
+      ],
+      "norm_confidence": "A",
+      "norm_status": "direct_npa",
+      "explanation": "Правила требуют визуальной идентификации клиента по удостоверению или данным сервиса цифровых документов до приёма (п. 19(1)) и выдачи (п. 31(1)). Если начало операции и предъявление документа полностью в кадре, но его нет — это сигнал.",
+      "false_positive_guards": "Не флагать, если ролик начинается посреди операции; идентификация может быть цифровой (телефон) или вне кадра. Требуется: видно начало операции.",
+      "source_cases": "K01",
+      "origin": "train",
+      "severity": "high",
+      "emit_policy": "violation"
+    },
+    {
+      "rule_id": "ID-02",
+      "parent_class": "IDENTITY",
+      "subtype": "late_identity_check",
+      "violation_type": "Идентификация клиента проведена после передачи наличных",
+      "visible_evidence": "Наличные уже переданы/приняты (cash_transaction_start), и только затем появляется документ",
+      "norms": [
+        {
+          "act": "S1",
+          "clause": "п. 19(1)",
+          "role": "primary"
+        },
+        {
+          "act": "S1",
+          "clause": "п. 31(1)",
+          "role": "primary"
+        }
+      ],
+      "norm_confidence": "A",
+      "norm_status": "direct_npa",
+      "explanation": "Идентификация предшествует операции; порядок «деньги → документ» нарушает последовательность п. 19(1)/31(1).",
+      "false_positive_guards": "Нужен полный цикл операции в кадре; различать «документ достают» и «документ уже проверяли ранее».",
+      "source_cases": "—",
+      "origin": "unseen",
+      "severity": "medium",
+      "emit_policy": "violation"
+    },
+    {
+      "rule_id": "ID-03",
+      "parent_class": "IDENTITY",
+      "subtype": "identity_actor_mismatch",
+      "violation_type": "Документ предъявлен одним лицом, наличные передаёт/получает другое",
+      "visible_evidence": "Два трека людей у окна: документ даёт человек A, деньги берёт/вносит человек B",
+      "norms": [
+        {
+          "act": "S1",
+          "clause": "п. 19(1)",
+          "role": "context"
+        },
+        {
+          "act": "S1",
+          "clause": "п. 31(1)",
+          "role": "context"
+        }
+      ],
+      "norm_confidence": "B",
+      "norm_status": "indirect_npa",
+      "explanation": "Нормы требуют идентифицировать клиента, совершающего операцию. Вопрос полномочий представителя по видео не проверяется, поэтому — сигнал для проверяющего, не вердикт.",
+      "false_positive_guards": "Возможен законный представитель; по внешности статус не определять.",
+      "source_cases": "—",
+      "origin": "unseen",
+      "severity": "medium",
+      "emit_policy": "violation_with_disclaimer"
+    },
+    {
+      "rule_id": "CH-01",
+      "parent_class": "CASH_HANDLING",
+      "subtype": "cash_not_secured",
+      "violation_type": "Ранее принятые деньги не убраны в запираемое устройство",
+      "visible_evidence": "Операция завершена (клиент ушёл/документы отданы), наличные остаются на столе; сейф/ящик не используется до начала следующей операции или дольше порога T",
+      "norms": [
+        {
+          "act": "S1",
+          "clause": "п. 20",
+          "role": "primary"
+        },
+        {
+          "act": "S1",
+          "clause": "п. 74–80",
+          "role": "context"
+        }
+      ],
+      "norm_confidence": "A",
+      "norm_status": "direct_npa",
+      "explanation": "П. 20: на рабочем месте находятся деньги текущего клиента, ранее принятые хранятся в закрывающихся на ключ устройствах.",
+      "false_positive_guards": "Не флагать наличные текущей операции; не флагать короткий интервал < T на упаковку/пересчёт при клиенте.",
+      "source_cases": "K03",
+      "origin": "train",
+      "severity": "high",
+      "emit_policy": "violation"
+    },
+    {
+      "rule_id": "CH-02",
+      "parent_class": "CASH_HANDLING",
+      "subtype": "unattended_cash",
+      "violation_type": "Наличные оставлены без присмотра",
+      "visible_evidence": "Наличные видны на столе/в открытом ящике, кассир вне зоны кассы (кадр/ROI) дольше T секунд",
+      "norms": [
+        {
+          "act": "S1",
+          "clause": "п. 20",
+          "role": "primary"
+        },
+        {
+          "act": "S1",
+          "clause": "п. 22",
+          "role": "primary"
+        },
+        {
+          "act": "S1",
+          "clause": "п. 74–80",
+          "role": "context"
+        }
+      ],
+      "norm_confidence": "A",
+      "norm_status": "direct_npa",
+      "explanation": "Кассир не покидает рабочее место до окончания обслуживания клиента (п. 22); деньги вне запираемых устройств без контроля создают риск доступа.",
+      "false_positive_guards": "Разделять «отошёл на 1–2 с за предметом в пределах зоны» и «покинул рабочую зону».",
+      "source_cases": "K17",
+      "origin": "train",
+      "severity": "high",
+      "emit_policy": "violation"
+    },
+    {
+      "rule_id": "CH-03",
+      "parent_class": "CASH_HANDLING",
+      "subtype": "cash_mixed_between_clients",
+      "violation_type": "Деньги разных клиентов смешаны",
+      "visible_evidence": "Две пачки/кучи наличных разных операций сливаются в одну зону",
+      "norms": [
+        {
+          "act": "S1",
+          "clause": "п. 20",
+          "role": "primary"
+        },
+        {
+          "act": "S1",
+          "clause": "п. 21",
+          "role": "context"
+        }
+      ],
+      "norm_confidence": "B",
+      "norm_status": "direct_npa",
+      "explanation": "П. 20 разделяет деньги текущего клиента и ранее принятые; п. 21 требует раздельного приёма по каждому документу.",
+      "false_positive_guards": "Принадлежность денег операции по видео выводится из трека клиента — снижать уверенность.",
+      "source_cases": "—",
+      "origin": "unseen",
+      "severity": "high",
+      "emit_policy": "violation"
+    },
+    {
+      "rule_id": "CH-04",
+      "parent_class": "CASH_HANDLING",
+      "subtype": "cash_into_personal_item",
+      "violation_type": "Наличные помещены в личный предмет сотрудника",
+      "visible_evidence": "Рука с наличными → карман/сумка/рюкзак; трек предмета связан с кассиром",
+      "norms": [
+        {
+          "act": "S1",
+          "clause": "п. 12",
+          "role": "context"
+        }
+      ],
+      "norm_confidence": "B",
+      "norm_status": "indirect_npa",
+      "explanation": "П. 12 требует хранить личные вещи и деньги работников вне кассового узла; прямого запрета фразой «класть служебные деньги в сумку» нет — но это сильный аномальный признак, на проверку человеку.",
+      "false_positive_guards": "Отличать личные деньги/кошелёк кассира от служебных нельзя — только review.",
+      "source_cases": "—",
+      "origin": "unseen",
+      "severity": "critical",
+      "emit_policy": "violation_with_disclaimer"
+    },
+    {
+      "rule_id": "CH-05",
+      "parent_class": "CASH_HANDLING",
+      "subtype": "third_party_cash_access",
+      "violation_type": "Другое лицо получило доступ к наличным",
+      "visible_evidence": "Рука не-кассира касается/забирает наличные на столе, пока кассир отвлечён или отсутствует",
+      "norms": [
+        {
+          "act": "S1",
+          "clause": "п. 20",
+          "role": "context"
+        },
+        {
+          "act": "S1",
+          "clause": "п. 22",
+          "role": "context"
+        }
+      ],
+      "norm_confidence": "B",
+      "norm_status": "indirect_npa",
+      "explanation": "Контроль за деньгами на рабочем месте возложен на кассира (п. 20, 22). Допустимость действий клиента по получению сдачи — контекст операции.",
+      "false_positive_guards": "Клиент берёт деньги, которые кассир ему передал/подвинул — норма.",
+      "source_cases": "—",
+      "origin": "unseen",
+      "severity": "high",
+      "emit_policy": "violation_with_disclaimer"
+    },
+    {
+      "rule_id": "CH-06",
+      "parent_class": "CASH_HANDLING",
+      "subtype": "cashier_left_during_service",
+      "violation_type": "Кассир покинул рабочее место до окончания обслуживания клиента",
+      "visible_evidence": "Клиент у окна, операция активна, кассир выходит за границу рабочей зоны",
+      "norms": [
+        {
+          "act": "S1",
+          "clause": "п. 22",
+          "role": "primary"
+        }
+      ],
+      "norm_confidence": "A",
+      "norm_status": "direct_npa",
+      "explanation": "Прямой запрет: кассиру нельзя покидать рабочее место до окончания обслуживания клиента.",
+      "false_positive_guards": "Операция должна быть явно незавершена (клиент ещё у окна/деньги в работе).",
+      "source_cases": "—",
+      "origin": "unseen",
+      "severity": "high",
+      "emit_policy": "violation"
+    },
+    {
+      "rule_id": "CS-01",
+      "parent_class": "COUNTING_SORTING",
+      "subtype": "count_without_customer",
+      "violation_type": "Пересчёт клиентских денег не в присутствии клиента",
+      "visible_evidence": "Кассир пересчитывает принятые/подготовленные к выдаче деньги, клиента нет в зоне окна",
+      "norms": [
+        {
+          "act": "S1",
+          "clause": "п. 20",
+          "role": "primary"
+        },
+        {
+          "act": "S1",
+          "clause": "п. 31(4)",
+          "role": "primary"
+        }
+      ],
+      "norm_confidence": "A",
+      "norm_status": "direct_npa",
+      "explanation": "Приём пересчитывается в присутствии клиента (п. 20); подготовленные к выдаче деньги пересчитываются при клиенте (п. 31(4)).",
+      "false_positive_guards": "Нужен контекст operation_context ∈ {acceptance, withdrawal}; внутренний пересчёт — другое правило (CS-04).",
+      "source_cases": "K13",
+      "origin": "train",
+      "severity": "high",
+      "emit_policy": "violation"
+    },
+    {
+      "rule_id": "CS-02",
+      "parent_class": "COUNTING_SORTING",
+      "subtype": "no_count_on_acceptance",
+      "violation_type": "Принятые наличные не пересчитаны",
+      "visible_evidence": "Наличные приняты и убраны без ручного или машинного пересчёта",
+      "norms": [
+        {
+          "act": "S1",
+          "clause": "п. 19(2)",
+          "role": "primary"
+        },
+        {
+          "act": "S1",
+          "clause": "п. 20",
+          "role": "context"
+        }
+      ],
+      "norm_confidence": "A",
+      "norm_status": "direct_npa",
+      "explanation": "П. 19(2): банкноты принимаются с полистным пересчётом, одновременно проверяются подлинность и платёжность.",
+      "false_positive_guards": "Машинный пересчёт (счётная машина) — норма; пачка в банковской упаковке — отдельные правила.",
+      "source_cases": "—",
+      "origin": "unseen",
+      "severity": "high",
+      "emit_policy": "violation"
+    },
+    {
+      "rule_id": "CS-03",
+      "parent_class": "COUNTING_SORTING",
+      "subtype": "no_count_on_issue",
+      "violation_type": "Выдача наличных без пересчёта при клиенте",
+      "visible_evidence": "Подготовленная сумма передаётся клиенту без пересчёта в его присутствии",
+      "norms": [
+        {
+          "act": "S1",
+          "clause": "п. 31(3–4)",
+          "role": "primary"
+        },
+        {
+          "act": "S1",
+          "clause": "п. 32",
+          "role": "context"
+        }
+      ],
+      "norm_confidence": "A",
+      "norm_status": "direct_npa",
+      "explanation": "Кассир повторно пересчитывает подготовленные деньги в присутствии клиента и только затем выдаёт.",
+      "false_positive_guards": "Неповреждённые банковские пачки можно выдавать по сумме на упаковке (п. 32).",
+      "source_cases": "—",
+      "origin": "unseen",
+      "severity": "high",
+      "emit_policy": "violation"
+    },
+    {
+      "rule_id": "CS-04",
+      "parent_class": "COUNTING_SORTING",
+      "subtype": "missing_controller",
+      "violation_type": "Пересчёт/сортировка/упаковка без контролирующего работника",
+      "visible_evidence": "internal_recount: один человек в зоне пересчёта, controller_count = 0",
+      "norms": [
+        {
+          "act": "S1",
+          "clause": "п. 42",
+          "role": "primary"
+        }
+      ],
+      "norm_confidence": "A",
+      "norm_status": "direct_npa",
+      "explanation": "Пересчёт, сортировка и упаковка выполняются кассиром в присутствии контролирующего работника, кроме приёма/выдачи клиенту.",
+      "false_positive_guards": "Не применять к обычному приёму/выдаче клиенту — сначала classifier контекста операции.",
+      "source_cases": "K05",
+      "origin": "train",
+      "severity": "high",
+      "emit_policy": "violation"
+    },
+    {
+      "rule_id": "CS-05",
+      "parent_class": "COUNTING_SORTING",
+      "subtype": "improper_sorting",
+      "violation_type": "Деньги разных номиналов сложены вместе при сортировке",
+      "visible_evidence": "Профессиональная сортировка/упаковка: смешанные номиналы в одной стопке/пачке",
+      "norms": [
+        {
+          "act": "S1",
+          "clause": "п. 43",
+          "role": "primary"
+        },
+        {
+          "act": "S1",
+          "clause": "п. 49–50",
+          "role": "context"
+        }
+      ],
+      "norm_confidence": "B",
+      "norm_status": "direct_npa",
+      "explanation": "П. 43 требует сортировки по номиналам и степени износа. Сборные пачки допускаются в п. 49–50 при условиях, поэтому нужен контекст.",
+      "false_positive_guards": "«Разные номиналы рядом» ≠ нарушение; при приёме клиента сортировки нет.",
+      "source_cases": "K06",
+      "origin": "train",
+      "severity": "medium",
+      "emit_policy": "violation"
+    },
+    {
+      "rule_id": "CS-06",
+      "parent_class": "COUNTING_SORTING",
+      "subtype": "discrepancy_without_procedure",
+      "violation_type": "Излишек/недостача: возврат без видимого оформления акта",
+      "visible_evidence": "Видно расхождение (лишняя банкнота/доплата); деньги возвращаются/перекладываются без паузы на оформление",
+      "norms": [
+        {
+          "act": "S1",
+          "clause": "п. 44",
+          "role": "primary"
+        },
+        {
+          "act": "S1",
+          "clause": "п. 35",
+          "role": "context"
+        }
+      ],
+      "norm_confidence": "B",
+      "norm_status": "direct_npa",
+      "explanation": "П. 44: при недостаче/излишке составляется акт. П. 35 — условие рассмотрения претензии клиента, не самостоятельная основа вердикта.",
+      "false_positive_guards": "Электронный акт камерой не виден — формулировать как «не прослеживается оформление».",
+      "source_cases": "K02",
+      "origin": "train",
+      "severity": "medium",
+      "emit_policy": "violation"
+    },
+    {
+      "rule_id": "CS-07",
+      "parent_class": "COUNTING_SORTING",
+      "subtype": "suspicious_cash_procedure",
+      "violation_type": "Сомнительная банкнота возвращена клиенту без процедуры",
+      "visible_evidence": "Кассир рассматривает банкноту (отложил/осмотрел) и возвращает клиенту, акт/заведующий не задействованы",
+      "norms": [
+        {
+          "act": "S1",
+          "clause": "п. 59",
+          "role": "primary"
+        },
+        {
+          "act": "S1",
+          "clause": "п. 60–63",
+          "role": "context"
+        },
+        {
+          "act": "S4",
+          "clause": "платёжность (по отсылке п. 41, 57)",
+          "role": "context"
+        }
+      ],
+      "norm_confidence": "B",
+      "norm_status": "direct_npa",
+      "explanation": "П. 59 предусматривает акт приёма на экспертизу в присутствии клиента и заведующего кассой; признанные поддельными деньги клиенту не возвращаются.",
+      "false_positive_guards": "Подлинность по камере не определяется — флаг только при однозначно наблюдаемой процедуре «изъять/вернуть».",
+      "source_cases": "—",
+      "origin": "unseen",
+      "severity": "high",
+      "emit_policy": "violation_with_disclaimer"
+    },
+    {
+      "rule_id": "CS-08",
+      "parent_class": "COUNTING_SORTING",
+      "subtype": "change_before_issue_complete",
+      "violation_type": "Размен/обмен начат до завершения основной выдачи",
+      "visible_evidence": "Кассир начинает менять номиналы до окончания выдачи подготовленной суммы",
+      "norms": [
+        {
+          "act": "S1",
+          "clause": "п. 34",
+          "role": "primary"
+        }
+      ],
+      "norm_confidence": "B",
+      "norm_status": "direct_npa",
+      "explanation": "Обмен по просьбе клиента проводится после завершения выдачи подготовленной суммы.",
+      "false_positive_guards": "Требуется полный цикл операции.",
+      "source_cases": "—",
+      "origin": "unseen",
+      "severity": "low",
+      "emit_policy": "violation"
+    },
+    {
+      "rule_id": "CO-01",
+      "parent_class": "CUSTOMER_OVERLAP",
+      "subtype": "second_customer_before_close",
+      "violation_type": "Обслуживание второго клиента начато до завершения операции первого",
+      "visible_evidence": "transaction_A_active, второй клиент передаёт документы/деньги, деньги или документы первого ещё на столе",
+      "norms": [
+        {
+          "act": "S1",
+          "clause": "п. 20",
+          "role": "primary"
+        },
+        {
+          "act": "S1",
+          "clause": "п. 21–22",
+          "role": "context"
+        }
+      ],
+      "norm_confidence": "B",
+      "norm_status": "indirect_npa",
+      "explanation": "Прямого правила «по одному клиенту» в публичных НПА не найдено. Но п. 20–22 требуют: на месте — деньги только текущего клиента, ранее принятые — под замком, кассир не прерывает обслуживание.",
+      "false_positive_guards": "Просто подошедший в очередь клиент ≠ обслуживание; триггер — начало действий со вторым (документы/деньги).",
+      "source_cases": "K04, K14",
+      "origin": "train",
+      "severity": "high",
+      "emit_policy": "violation"
+    },
+    {
+      "rule_id": "CO-02",
+      "parent_class": "CUSTOMER_OVERLAP",
+      "subtype": "two_active_transactions",
+      "violation_type": "Две незавершённые операции одновременно",
+      "visible_evidence": "Кассир поочерёдно работает с наличными/документами двух клиентов; обе операции не закрыты",
+      "norms": [
+        {
+          "act": "S1",
+          "clause": "п. 20–22",
+          "role": "primary"
+        }
+      ],
+      "norm_confidence": "B",
+      "norm_status": "indirect_npa",
+      "explanation": "Следствие тех же норм: невозможно одновременно соблюсти п. 20 (деньги только текущего клиента) при двух активных операциях.",
+      "false_positive_guards": "Нужны два устойчивых трека клиентов.",
+      "source_cases": "—",
+      "origin": "unseen",
+      "severity": "high",
+      "emit_policy": "violation"
+    },
+    {
+      "rule_id": "COL-01",
+      "parent_class": "COLLECTION",
+      "subtype": "collector_docs_not_verified",
+      "violation_type": "При инкассации не видна проверка документов инкассатора",
+      "visible_evidence": "Инкассатор у окна, передача сумки; предъявления/проверки документов и сверки нет в полной сцене",
+      "norms": [
+        {
+          "act": "S1",
+          "clause": "п. 101",
+          "role": "primary"
+        },
+        {
+          "act": "S1",
+          "clause": "Приложение 4",
+          "role": "primary"
+        },
+        {
+          "act": "S1",
+          "clause": "п. 92",
+          "role": "context"
+        }
+      ],
+      "norm_confidence": "A",
+      "norm_status": "direct_npa",
+      "explanation": "Инкассатору-сборщику выдаются доверенность, явочная карточка, служебное удостоверение; доверенность предусматривает предъявление удостоверения и явочной карточки.",
+      "false_positive_guards": "Документы мелкие: считать нарушением только если вся сцена видна; иначе review.",
+      "source_cases": "K09",
+      "origin": "train",
+      "severity": "high",
+      "emit_policy": "violation_with_disclaimer"
+    },
+    {
+      "rule_id": "COL-02",
+      "parent_class": "COLLECTION",
+      "subtype": "collection_record_missing",
+      "violation_type": "Не оформлена явочная/препроводительная документация",
+      "visible_evidence": "Передача сумки завершена, этапа записи/заполнения/подписи в видимой сцене нет",
+      "norms": [
+        {
+          "act": "S1",
+          "clause": "п. 92",
+          "role": "context"
+        },
+        {
+          "act": "S1",
+          "clause": "п. 106–107",
+          "role": "primary"
+        },
+        {
+          "act": "S1",
+          "clause": "Приложения 2–3",
+          "role": "context"
+        }
+      ],
+      "norm_confidence": "B",
+      "norm_status": "direct_npa",
+      "explanation": "Нормы требуют препроводительный документ и явочную карточку; отсутствие записи видно, только если весь этап в кадре.",
+      "false_positive_guards": "Оформление может быть электронным/вне кадра.",
+      "source_cases": "K10",
+      "origin": "train",
+      "severity": "medium",
+      "emit_policy": "violation_with_disclaimer"
+    },
+    {
+      "rule_id": "COL-03",
+      "parent_class": "COLLECTION",
+      "subtype": "bag_unattended",
+      "violation_type": "Инкассаторская сумка оставлена без контроля",
+      "visible_evidence": "Сумка на столе/полу, передача завершена или нет ответственного рядом дольше T; не помещена в защищённое хранение",
+      "norms": [
+        {
+          "act": "S1",
+          "clause": "п. 93",
+          "role": "context"
+        },
+        {
+          "act": "S1",
+          "clause": "п. 121–123",
+          "role": "primary"
+        },
+        {
+          "act": "S2",
+          "clause": "п. 21",
+          "role": "context"
+        }
+      ],
+      "norm_confidence": "B",
+      "norm_status": "direct_npa",
+      "explanation": "Принятые инкассированные ценности подлежат хранению в кладовых/сейфовых комнатах (п. 121–123).",
+      "false_positive_guards": "Сумка на столе во время непосредственной передачи — норма.",
+      "source_cases": "K11",
+      "origin": "train",
+      "severity": "high",
+      "emit_policy": "violation"
+    },
+    {
+      "rule_id": "COL-04",
+      "parent_class": "COLLECTION",
+      "subtype": "collection_missing_controller",
+      "violation_type": "Пересчёт инкассированных денег без второго работника",
+      "visible_evidence": "Контекст = инкассация; один сотрудник пересчитывает/сортирует/упаковывает",
+      "norms": [
+        {
+          "act": "S1",
+          "clause": "п. 131",
+          "role": "primary"
+        },
+        {
+          "act": "S1",
+          "clause": "п. 42",
+          "role": "primary"
+        }
+      ],
+      "norm_confidence": "A",
+      "norm_status": "direct_npa",
+      "explanation": "Для инкассации действуют те же требования п. 41–56, включая контролирующего работника. Номер п. 131 — из каталога команды: перепроверить на adilet.",
+      "false_positive_guards": "Не путать с приёмом сумки от инкассатора при нём.",
+      "source_cases": "K12",
+      "origin": "train",
+      "severity": "high",
+      "emit_policy": "violation"
+    },
+    {
+      "rule_id": "COL-05",
+      "parent_class": "COLLECTION",
+      "subtype": "bag_integrity_not_checked",
+      "violation_type": "Сумка принята без видимой проверки целостности/пломбы",
+      "visible_evidence": "Передача сумки; нет осмотра пломбы/швов/замка",
+      "norms": [
+        {
+          "act": "S1",
+          "clause": "п. 24–25",
+          "role": "primary"
+        },
+        {
+          "act": "S1",
+          "clause": "п. 105–108",
+          "role": "primary"
+        }
+      ],
+      "norm_confidence": "A",
+      "norm_status": "direct_npa",
+      "explanation": "При приёме инкассаторской сумки кассир проверяет документы, целостность и правильность пломбирования.",
+      "false_positive_guards": "Осмотр может быть быстрым — искать поворот сумки/взгляд на пломбу, не задавать жёсткий минимум.",
+      "source_cases": "—",
+      "origin": "unseen",
+      "severity": "high",
+      "emit_policy": "violation"
+    },
+    {
+      "rule_id": "COL-06",
+      "parent_class": "COLLECTION",
+      "subtype": "damaged_bag_accepted",
+      "violation_type": "Сумка с видимым повреждением принята как обычная",
+      "visible_evidence": "Сумка вскрыта/порвана/сорвана пломба и принимается без процедуры вскрытия при инкассаторе",
+      "norms": [
+        {
+          "act": "S1",
+          "clause": "п. 24–25",
+          "role": "primary"
+        },
+        {
+          "act": "S1",
+          "clause": "п. 93",
+          "role": "context"
+        }
+      ],
+      "norm_confidence": "B",
+      "norm_status": "direct_npa",
+      "explanation": "При нарушении целостности сумка вскрывается и пересчитывается в присутствии инкассатора, излишек/недостача — актом.",
+      "false_positive_guards": "Распознавание повреждений по верхней камере ненадёжно.",
+      "source_cases": "—",
+      "origin": "unseen",
+      "severity": "high",
+      "emit_policy": "violation_with_disclaimer"
+    },
+    {
+      "rule_id": "COL-07",
+      "parent_class": "COLLECTION",
+      "subtype": "bag_swap_or_third_party_touch",
+      "violation_type": "Посторонний касается сумки / сумка подменена",
+      "visible_evidence": "Трек сумки меняет владельца без этапа сверки; человек вне ролей касается сумки",
+      "norms": [
+        {
+          "act": "S1",
+          "clause": "п. 93",
+          "role": "context"
+        },
+        {
+          "act": "S1",
+          "clause": "п. 121–123",
+          "role": "context"
+        }
+      ],
+      "norm_confidence": "C",
+      "norm_status": "internal_risk_rule",
+      "explanation": "Прямого пункта нет; логика сохранности ценностей. Использовать как risk-сигнал.",
+      "false_positive_guards": "Роль человека по внешности не выводить.",
+      "source_cases": "—",
+      "origin": "unseen",
+      "severity": "medium",
+      "emit_policy": "review_only"
+    },
+    {
+      "rule_id": "COL-08",
+      "parent_class": "COLLECTION",
+      "subtype": "collection_visible_to_third_parties",
+      "violation_type": "Погрузка/передача ценностей доступна наблюдению третьих лиц",
+      "visible_evidence": "Зона инкассации с посторонними в зоне видимости/доступа",
+      "norms": [
+        {
+          "act": "S2",
+          "clause": "п. 21",
+          "role": "primary"
+        }
+      ],
+      "norm_confidence": "B",
+      "norm_status": "direct_npa",
+      "explanation": "П. 21 Правил № 14 ограничивает доступ и просмотр при погрузочно-разгрузочных работах инкассации.",
+      "false_positive_guards": "Нужна размеченная зона инкассации.",
+      "source_cases": "—",
+      "origin": "unseen",
+      "severity": "medium",
+      "emit_policy": "violation_with_disclaimer"
+    },
+    {
+      "rule_id": "COL-09",
+      "parent_class": "COLLECTION",
+      "subtype": "insufficient_collector_team",
+      "violation_type": "Инкассация выполняется одним работником",
+      "visible_evidence": "Сценарий инкассации/сопровождения с единственным инкассатором в кадре",
+      "norms": [
+        {
+          "act": "S1",
+          "clause": "п. 96",
+          "role": "primary"
+        },
+        {
+          "act": "S1",
+          "clause": "п. 127",
+          "role": "context"
+        }
+      ],
+      "norm_confidence": "B",
+      "norm_status": "indirect_npa",
+      "explanation": "П. 96: инкассация выполняется бригадой. Для сопровождения клиента каталог ссылается на п. 127 — перепроверить.",
+      "false_positive_guards": "Второй член бригады может быть вне кадра.",
+      "source_cases": "—",
+      "origin": "unseen",
+      "severity": "medium",
+      "emit_policy": "review_only"
+    },
+    {
+      "rule_id": "PS-01",
+      "parent_class": "PHYSICAL_SECURITY",
+      "subtype": "safe_left_open",
+      "violation_type": "Сейф/сейфовая зона оставлены открытыми при уходе",
+      "visible_evidence": "safe=open, кассир выходит из зоны контроля или забрал ключи, сейф не закрыт",
+      "norms": [
+        {
+          "act": "S1",
+          "clause": "п. 74–80",
+          "role": "primary"
+        },
+        {
+          "act": "S2",
+          "clause": "п. 12–16",
+          "role": "context"
+        }
+      ],
+      "norm_confidence": "B",
+      "norm_status": "direct_npa",
+      "explanation": "Нормы требуют защищённого хранения, ограниченного доступа и ключей у ответственных; открытое хранилище без контроля противоречит их цели. Порядок закрытия — внутренними документами.",
+      "false_positive_guards": "Открытый сейф во время работы с ним при присутствии кассира — норма.",
+      "source_cases": "K15, K16",
+      "origin": "train",
+      "severity": "critical",
+      "emit_policy": "violation"
+    },
+    {
+      "rule_id": "PS-02",
+      "parent_class": "PHYSICAL_SECURITY",
+      "subtype": "lock_left_open",
+      "violation_type": "Запираемые устройства (замки/ящик) оставлены открытыми",
+      "visible_evidence": "Ящик/металлический шкаф с деньгами открыт, кассир не у рабочего места или переключился на другое",
+      "norms": [
+        {
+          "act": "S1",
+          "clause": "п. 20",
+          "role": "primary"
+        },
+        {
+          "act": "S1",
+          "clause": "п. 76–80",
+          "role": "context"
+        },
+        {
+          "act": "S2",
+          "clause": "п. 12–16",
+          "role": "context"
+        }
+      ],
+      "norm_confidence": "B",
+      "norm_status": "direct_npa",
+      "explanation": "П. 20: ранее принятые деньги хранятся в закрывающихся на ключ устройствах.",
+      "false_positive_guards": "Открытый замок без денег внутри или в ходе операции — норма.",
+      "source_cases": "K18",
+      "origin": "train",
+      "severity": "high",
+      "emit_policy": "violation"
+    },
+    {
+      "rule_id": "PS-03",
+      "parent_class": "PHYSICAL_SECURITY",
+      "subtype": "keys_unattended",
+      "violation_type": "Ключи/средства доступа к сейфу оставлены без ответственного лица",
+      "visible_evidence": "Ключ/карта на столе или в замке, ответственный вне зоны, рядом другие люди либо долго",
+      "norms": [
+        {
+          "act": "S1",
+          "clause": "п. 76",
+          "role": "primary"
+        },
+        {
+          "act": "S1",
+          "clause": "п. 80",
+          "role": "primary"
+        }
+      ],
+      "norm_confidence": "A",
+      "norm_status": "direct_npa",
+      "explanation": "Ключи/коды замков хранятся у ответственных лиц; порядок хранения должен исключать несанкционированное использование.",
+      "false_positive_guards": "Ключ в руке/на теле кассира — норма.",
+      "source_cases": "K08",
+      "origin": "train",
+      "severity": "high",
+      "emit_policy": "violation"
+    },
+    {
+      "rule_id": "PS-04",
+      "parent_class": "PHYSICAL_SECURITY",
+      "subtype": "key_handover_to_unauthorized",
+      "violation_type": "Ключ передан лицу без полномочий",
+      "visible_evidence": "Ключ переходит от кассира к другому человеку (клиент/неопознанный)",
+      "norms": [
+        {
+          "act": "S1",
+          "clause": "п. 76",
+          "role": "primary"
+        },
+        {
+          "act": "S1",
+          "clause": "п. 80",
+          "role": "context"
+        }
+      ],
+      "norm_confidence": "B",
+      "norm_status": "direct_npa",
+      "explanation": "Ключи хранятся у ответственных лиц. Роль получателя по видео неизвестна — требуется контекст.",
+      "false_positive_guards": "Передача старшему/второму кассиру по регламенту — норма.",
+      "source_cases": "—",
+      "origin": "unseen",
+      "severity": "critical",
+      "emit_policy": "violation_with_disclaimer"
+    },
+    {
+      "rule_id": "PS-05",
+      "parent_class": "PHYSICAL_SECURITY",
+      "subtype": "secure_door_left_open",
+      "violation_type": "Дверь кассовой/защищённой зоны не закрыта после входа",
+      "visible_evidence": "Вход сотрудника; дверь остаётся открытой дольше T",
+      "norms": [
+        {
+          "act": "S2",
+          "clause": "п. 8",
+          "role": "primary"
+        },
+        {
+          "act": "S2",
+          "clause": "п. 16(1)",
+          "role": "primary"
+        },
+        {
+          "act": "S2",
+          "clause": "п. 12–13",
+          "role": "context"
+        }
+      ],
+      "norm_confidence": "B",
+      "norm_status": "direct_npa",
+      "explanation": "Кассовый узел изолирован и имеет закрывающийся служебный вход; кладовая/сейфовая — запираемые двери.",
+      "false_positive_guards": "Правило «закрывать после каждого входа» уточняется внутренними документами.",
+      "source_cases": "K22",
+      "origin": "train",
+      "severity": "medium",
+      "emit_policy": "violation"
+    },
+    {
+      "rule_id": "PS-06",
+      "parent_class": "PHYSICAL_SECURITY",
+      "subtype": "unauthorized_entry",
+      "violation_type": "Посторонний вошёл в кассовую/сейфовую зону",
+      "visible_evidence": "Трек человека без роли сотрудника пересекает границу secure zone без сопровождения",
+      "norms": [
+        {
+          "act": "S1",
+          "clause": "п. 75",
+          "role": "primary"
+        },
+        {
+          "act": "S2",
+          "clause": "п. 8",
+          "role": "context"
+        }
+      ],
+      "norm_confidence": "B",
+      "norm_status": "direct_npa",
+      "explanation": "Вход в кладовую/сейфовую разрешён ответственным лицам, прочие — только по документу и в сопровождении (п. 75).",
+      "false_positive_guards": "Статус «посторонний» — из контекста зоны/сценария, не из внешности.",
+      "source_cases": "—",
+      "origin": "unseen",
+      "severity": "critical",
+      "emit_policy": "violation"
+    },
+    {
+      "rule_id": "PS-07",
+      "parent_class": "PHYSICAL_SECURITY",
+      "subtype": "tailgating",
+      "violation_type": "Проход в защищённую зону вслед за сотрудником",
+      "visible_evidence": "Два трека проходят через дверь за одно открытие; второй не сотрудник/без контроля",
+      "norms": [
+        {
+          "act": "S2",
+          "clause": "п. 8",
+          "role": "context"
+        },
+        {
+          "act": "S1",
+          "clause": "п. 75",
+          "role": "context"
+        }
+      ],
+      "norm_confidence": "C",
+      "norm_status": "indirect_npa",
+      "explanation": "Термина tailgating в НПА нет; следствие требований к закрывающимся входам и допуску. Помечать как needs verification.",
+      "false_positive_guards": "Сопровождение разрешено при документальном основании.",
+      "source_cases": "—",
+      "origin": "unseen",
+      "severity": "high",
+      "emit_policy": "violation_with_disclaimer"
+    },
+    {
+      "rule_id": "PS-08",
+      "parent_class": "PHYSICAL_SECURITY",
+      "subtype": "customer_in_cash_zone",
+      "violation_type": "Клиент зашёл за линию кассы/в рабочую зону",
+      "visible_evidence": "Трек клиента пересекает границу cashier_zone",
+      "norms": [
+        {
+          "act": "S2",
+          "clause": "п. 8",
+          "role": "context"
+        },
+        {
+          "act": "S2",
+          "clause": "п. 7",
+          "role": "context"
+        }
+      ],
+      "norm_confidence": "B",
+      "norm_status": "indirect_npa",
+      "explanation": "Кассовый узел изолируется; зонирование — п. 7 Правил № 14. Границы зоны нужно разметить.",
+      "false_positive_guards": "Ручка/документ через окно ≠ вход.",
+      "source_cases": "—",
+      "origin": "unseen",
+      "severity": "high",
+      "emit_policy": "violation_with_disclaimer"
+    },
+    {
+      "rule_id": "PS-09",
+      "parent_class": "PHYSICAL_SECURITY",
+      "subtype": "open_secure_state_with_distraction",
+      "violation_type": "Кассир отвлёкся на разговор при открытом сейфе/замках",
+      "visible_evidence": "Разговор/повёрнутый корпус/телефон + safe=open или lock=open + нет взгляда на хранилище > T",
+      "norms": [
+        {
+          "act": "S1",
+          "clause": "п. 74–80",
+          "role": "primary"
+        },
+        {
+          "act": "S2",
+          "clause": "п. 12–16",
+          "role": "context"
+        }
+      ],
+      "norm_confidence": "B",
+      "norm_status": "direct_npa",
+      "explanation": "Разговор не нарушение сам по себе; нарушение — открытое хранение/доступ без контроля.",
+      "false_positive_guards": "Нужна комбинация distraction ∧ open_state.",
+      "source_cases": "K21",
+      "origin": "train",
+      "severity": "high",
+      "emit_policy": "violation"
+    },
+    {
+      "rule_id": "PS-10",
+      "parent_class": "PHYSICAL_SECURITY",
+      "subtype": "safe_open_cashier_away_third_party",
+      "violation_type": "Сейф открыт, кассир ушёл, рядом посторонний",
+      "visible_evidence": "safe=open ∧ cashier_away ∧ другой человек в радиусе доступа",
+      "norms": [
+        {
+          "act": "S1",
+          "clause": "п. 74–80",
+          "role": "primary"
+        },
+        {
+          "act": "S1",
+          "clause": "п. 76",
+          "role": "context"
+        },
+        {
+          "act": "S2",
+          "clause": "п. 12–16",
+          "role": "context"
+        }
+      ],
+      "norm_confidence": "B",
+      "norm_status": "direct_npa",
+      "explanation": "Составное событие = PS-01 + CH-05; самый высокий приоритет.",
+      "false_positive_guards": "—",
+      "source_cases": "—",
+      "origin": "unseen",
+      "severity": "critical",
+      "emit_policy": "violation"
+    },
+    {
+      "rule_id": "WS-01",
+      "parent_class": "WORKSTATION_SECURITY",
+      "subtype": "unattended_active_workstation",
+      "violation_type": "Рабочая станция оставлена активной и доступной",
+      "visible_evidence": "Экран активен, кассира нет у рабочего места > T (и/или рядом посторонний)",
+      "norms": [
+        {
+          "act": "S3",
+          "clause": "п. 71(9)",
+          "role": "context"
+        },
+        {
+          "act": "S3",
+          "clause": "п. 135",
+          "role": "context"
+        }
+      ],
+      "norm_confidence": "C",
+      "norm_status": "internal_risk_rule",
+      "explanation": "Публичная норма: автоблокировка после >30 минут неактивности; физический доступ определяет банк. Требования «выключить ноутбук» нет — не писать, что оно есть.",
+      "false_positive_guards": "Короткий отход (<30 мин) сам по себе не нарушает п. 71(9). Формулировать как внутреннюю процедуру.",
+      "source_cases": "K07",
+      "origin": "train",
+      "severity": "medium",
+      "emit_policy": "violation_with_disclaimer"
+    },
+    {
+      "rule_id": "WS-02",
+      "parent_class": "WORKSTATION_SECURITY",
+      "subtype": "unauthorized_workstation_access",
+      "violation_type": "Посторонний работает за рабочей станцией кассира",
+      "visible_evidence": "Другой человек: руки на клавиатуре/мыши кассира, кассира нет",
+      "norms": [
+        {
+          "act": "S3",
+          "clause": "п. 135",
+          "role": "context"
+        },
+        {
+          "act": "S3",
+          "clause": "п. 71(9)",
+          "role": "context"
+        }
+      ],
+      "norm_confidence": "C",
+      "norm_status": "internal_risk_rule",
+      "explanation": "Нарушение физической защиты доступа к информационным активам; конкретный пункт устанавливает внутренний акт банка.",
+      "false_positive_guards": "Второй кассир/старший — норма.",
+      "source_cases": "—",
+      "origin": "unseen",
+      "severity": "high",
+      "emit_policy": "violation_with_disclaimer"
+    },
+    {
+      "rule_id": "WR-01",
+      "parent_class": "WORKSPACE_RISK",
+      "subtype": "personal_items_near_cash",
+      "violation_type": "Личные вещи находятся на кассовом столе/в кассовом узле",
+      "visible_evidence": "Сумка/кошелёк/ключи на рабочем столе в зоне наличных",
+      "norms": [
+        {
+          "act": "S1",
+          "clause": "п. 12",
+          "role": "primary"
+        },
+        {
+          "act": "S2",
+          "clause": "правила помещений: отдельное место для личных вещей",
+          "role": "context"
+        }
+      ],
+      "norm_confidence": "B",
+      "norm_status": "indirect_npa",
+      "explanation": "Согласно рабочему конспекту, п. 12 № 231 требует хранить личные вещи вне кассового узла. В каталоге команды этот кейс помечен C — расхождение: перед защитой сверить п. 12 на adilet.",
+      "false_positive_guards": "Служебные предметы (штамп, ручка) не личные; кассир может иметь право на лекарства/средства связи без камеры.",
+      "source_cases": "K19",
+      "origin": "train",
+      "severity": "medium",
+      "emit_policy": "violation_with_disclaimer"
+    },
+    {
+      "rule_id": "WR-02",
+      "parent_class": "WORKSPACE_RISK",
+      "subtype": "food_or_drink_near_cash",
+      "violation_type": "Приём пищи/напитки на кассовом рабочем месте",
+      "visible_evidence": "Еда/напиток на столе рядом с наличными или употребляются кассиром",
+      "norms": [],
+      "norm_confidence": "C",
+      "norm_status": "internal_risk_rule",
+      "explanation": "Прямой публичный пункт не подтверждён. Использовать как внутреннее правило/ risk-признак; не придумывать пункт.",
+      "false_positive_guards": "Не ставить юридическую ссылку.",
+      "source_cases": "K20",
+      "origin": "train",
+      "severity": "low",
+      "emit_policy": "violation_with_disclaimer"
+    },
+    {
+      "rule_id": "WR-03",
+      "parent_class": "WORKSPACE_RISK",
+      "subtype": "phone_in_cash_zone",
+      "violation_type": "Телефон/устройство с камерой в кассовом узле",
+      "visible_evidence": "Телефон в руках/на столе в зоне наличных; направлен на деньги",
+      "norms": [
+        {
+          "act": "S1",
+          "clause": "п. 12",
+          "role": "primary"
+        }
+      ],
+      "norm_confidence": "B",
+      "norm_status": "indirect_npa",
+      "explanation": "П. 12 допускает средства связи без фото/видеофиксации; наличие камеры по видео не определить — флаг только при съёмке/наведении на деньги.",
+      "false_positive_guards": "Служебный телефон без камеры допустим.",
+      "source_cases": "—",
+      "origin": "unseen",
+      "severity": "medium",
+      "emit_policy": "review_only"
+    },
+    {
+      "rule_id": "UN-01",
+      "parent_class": "UNKNOWN_ANOMALY",
+      "subtype": "workflow_deviation_unknown_type",
+      "violation_type": "Unclassified visual cash-discipline anomaly",
+      "visible_evidence": "Высокий anomaly score, не сопоставленный ни с одним известным правилом",
+      "norms": [],
+      "norm_confidence": "C",
+      "norm_status": "internal_risk_rule",
+      "explanation": "Необычное отклонение от нормального рабочего процесса; нормативная связь не подтверждена. Решение — за проверяющим.",
+      "false_positive_guards": "Без нормативной ссылки; не выставлять вердикт без подтверждения.",
+      "source_cases": "—",
+      "origin": "unseen",
+      "severity": "medium",
+      "emit_policy": "review_only"
+    }
+  ]
+}
